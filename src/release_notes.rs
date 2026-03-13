@@ -1,3 +1,10 @@
+//! Offline changelog generator from git merge history.
+//!
+//! Walks the first-parent log between two refs, extracts PR numbers and
+//! author namespace keys from merge commit subjects, looks up GitHub handles
+//! via `git config`, and outputs Markdown-style release notes. Runs fully
+//! offline with no API calls.
+
 use std::collections::HashMap;
 use std::process::Command;
 
@@ -5,6 +12,7 @@ use clap::Args;
 
 use crate::error::{Error, Result};
 
+/// Arguments for the `release-notes` subcommand.
 #[derive(Args)]
 pub struct ReleaseNotesArgs {
     /// The base git ref (must be an ancestor of head)
@@ -24,6 +32,11 @@ pub struct ReleaseNotesArgs {
     pub repo_name: String,
 }
 
+/// Executes the `release-notes` subcommand.
+///
+/// # Errors
+///
+/// Returns an error if the ancestry check fails or a git subprocess fails.
 pub fn execute(args: &ReleaseNotesArgs) -> Result<()> {
     run(&ReleaseNotesParams {
         base: &args.base,
@@ -33,6 +46,7 @@ pub fn execute(args: &ReleaseNotesArgs) -> Result<()> {
     })
 }
 
+/// Parameters for [`run`].
 pub struct ReleaseNotesParams<'a> {
     pub base: &'a str,
     pub head: &'a str,
@@ -46,6 +60,11 @@ struct NoteEntry {
     pr_number: u64,
 }
 
+/// Generates release notes between two git refs and prints them to stdout.
+///
+/// # Errors
+///
+/// Returns an error if the ancestry check fails or a git subprocess fails.
 pub fn run(params: &ReleaseNotesParams) -> Result<()> {
     verify_ancestry(params.base, params.head)?;
     let author_map = load_author_map(params.config_key)?;

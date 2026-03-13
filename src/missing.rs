@@ -1,3 +1,11 @@
+//! Release branch analysis engine for finding missing PRs.
+//!
+//! Compares the first-parent history of `main` against a release branch
+//! to find PRs that are "effectively present" on main but absent from the
+//! release. Uses `git log | rg` pipelines and the odd/even mention counting
+//! rule to determine effective presence. Outputs formatted tables and a
+//! ready-to-paste `git cherry-pick` command.
+
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 use std::io::Write;
@@ -7,6 +15,7 @@ use clap::Args;
 
 use crate::error::{Error, Result};
 
+/// Arguments for the `missing-prs` subcommand.
 #[derive(Args)]
 pub struct MissingPrsArgs {
     /// The release branch to compare against (auto-detected from current branch if omitted)
@@ -14,6 +23,12 @@ pub struct MissingPrsArgs {
     pub release_branch: Option<String>,
 }
 
+/// Executes the `missing-prs` subcommand: reads PR numbers from stdin
+/// and runs the full analysis pipeline.
+///
+/// # Errors
+///
+/// Returns an error if stdin cannot be read or the git/rg pipeline fails.
 pub fn execute(args: &MissingPrsArgs) -> Result<()> {
     let pr_lines = crate::read_lines_from_stdin()?;
     run(&MissingPrsParams {
@@ -22,6 +37,7 @@ pub fn execute(args: &MissingPrsArgs) -> Result<()> {
     })
 }
 
+/// Parameters for [`run`].
 pub struct MissingPrsParams<'a> {
     pub pr_lines: &'a [String],
     pub release_branch: Option<&'a str>,
@@ -43,6 +59,12 @@ struct ResolveShasParams<'a> {
     pattern: &'a str,
 }
 
+/// Runs the full missing-PRs analysis pipeline.
+///
+/// # Errors
+///
+/// Returns an error if required tools are missing, the release branch is
+/// invalid, or the git/rg pipeline fails.
 pub fn run(params: &MissingPrsParams) -> Result<()> {
     check_required_tools()?;
 
@@ -399,8 +421,10 @@ fn extract_pr_refs_from_subject(subject: &str) -> Vec<u64> {
     result
 }
 
-/// Returns true if the current git branch looks like a release branch (release/v*).
-/// Used by the orchestrator to decide whether to auto-engage missing-prs.
+/// Returns `true` if the current git branch looks like a release branch (`release/v*`).
+///
+/// Used by the orchestrator to decide whether to auto-engage the missing-prs stage.
+#[must_use]
 pub fn on_release_branch() -> bool {
     let output = Command::new("git")
         .args(["rev-parse", "--abbrev-ref", "HEAD"])

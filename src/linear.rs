@@ -1,3 +1,10 @@
+//! Linear GraphQL API client for ticket queries and PR extraction.
+//!
+//! Uses `curl` as a subprocess to call the Linear GraphQL endpoint.
+//! Provides paginated ticket fetching with label/status/assignee filters,
+//! and batched alias queries to extract GitHub PR numbers from ticket
+//! attachments. Warns on stderr when a ticket has no associated PRs.
+
 use std::collections::HashSet;
 use std::process::Command;
 
@@ -6,6 +13,7 @@ use serde::Deserialize;
 
 use crate::error::{Error, Result};
 
+/// Arguments for the `get-tickets` subcommand.
 #[derive(Args)]
 pub struct GetTicketsArgs {
     #[arg(short = 'l', long = "label")]
@@ -24,6 +32,7 @@ pub struct GetTicketsArgs {
     pub api_key: Option<String>,
 }
 
+/// Arguments for the `get-prs` subcommand.
 #[derive(Args)]
 pub struct GetPrsArgs {
     #[arg(short = 'n', long = "limit")]
@@ -33,6 +42,11 @@ pub struct GetPrsArgs {
     pub api_key: Option<String>,
 }
 
+/// Executes the `get-tickets` subcommand: queries Linear and prints ticket identifiers.
+///
+/// # Errors
+///
+/// Returns an error if the API key is missing or the Linear API call fails.
 pub fn execute_get_tickets(args: &GetTicketsArgs) -> Result<()> {
     let api_key = resolve_api_key(args.api_key.as_deref())?;
     let tickets = get_tickets(&GetTicketsParams {
@@ -48,6 +62,12 @@ pub fn execute_get_tickets(args: &GetTicketsArgs) -> Result<()> {
     Ok(())
 }
 
+/// Executes the `get-prs` subcommand: reads ticket IDs from stdin,
+/// queries Linear for PR attachments, and prints PR numbers.
+///
+/// # Errors
+///
+/// Returns an error if stdin cannot be read or the Linear API call fails.
 pub fn execute_get_prs(args: &GetPrsArgs) -> Result<()> {
     let api_key = resolve_api_key(args.api_key.as_deref())?;
     let ticket_ids = crate::read_lines_from_stdin()?;
@@ -66,6 +86,11 @@ const LINEAR_GRAPHQL_ENDPOINT: &str = "https://api.linear.app/graphql";
 const PAGE_SIZE: usize = 50;
 const ALIAS_BATCH_SIZE: usize = 50;
 
+/// Resolves the Linear API key from CLI args or the `LINEAR_API_KEY` environment variable.
+///
+/// # Errors
+///
+/// Returns [`Error::ApiKeyNotFound`] if neither source provides a key.
 pub fn resolve_api_key(cli_key: Option<&str>) -> Result<String> {
     if let Some(key) = cli_key {
         return Ok(key.to_string());
@@ -157,6 +182,7 @@ struct PageInfo {
     end_cursor: Option<String>,
 }
 
+/// Parameters for [`get_tickets`].
 pub struct GetTicketsParams<'a> {
     pub api_key: &'a str,
     pub labels: &'a [String],
@@ -196,6 +222,13 @@ fn json_string_array(values: &[String]) -> String {
     format!("[{}]", escaped.join(", "))
 }
 
+/// Queries Linear for issues matching the given filters, returning their identifiers.
+///
+/// Handles pagination automatically; respects the optional limit.
+///
+/// # Errors
+///
+/// Returns an error if the API call fails or the response cannot be parsed.
 pub fn get_tickets(params: &GetTicketsParams) -> Result<Vec<String>> {
     let filter = build_issue_filter(params);
     let mut all_identifiers = Vec::new();
@@ -248,12 +281,21 @@ pub fn get_tickets(params: &GetTicketsParams) -> Result<Vec<String>> {
 
 // --- get_prs_for_tickets ---
 
+/// Parameters for [`get_prs_for_tickets`].
 pub struct GetPrsParams<'a> {
     pub api_key: &'a str,
     pub ticket_ids: &'a [String],
     pub limit: Option<usize>,
 }
 
+/// Fetches GitHub PR numbers for the given Linear ticket IDs.
+///
+/// Uses batched GraphQL alias queries. Warns on stderr for tickets
+/// with no PR attachments (including the assignee name when available).
+///
+/// # Errors
+///
+/// Returns an error if the API call fails or the response cannot be parsed.
 pub fn get_prs_for_tickets(params: &GetPrsParams) -> Result<Vec<u64>> {
     if params.ticket_ids.is_empty() {
         return Ok(Vec::new());

@@ -1,3 +1,8 @@
+//! GitHub CLI wrapper for PR merge status filtering.
+//!
+//! Uses `gh pr view` to check the merge status of each PR number or URL.
+//! Accepts both bare PR numbers and full GitHub PR URLs on stdin.
+
 use std::process::Command;
 
 use clap::Args;
@@ -5,12 +10,19 @@ use serde::Deserialize;
 
 use crate::error::{Error, Result};
 
+/// Arguments for the `filter-merged` subcommand.
 #[derive(Args)]
 pub struct FilterMergedArgs {
     #[arg(short = 'r', long = "repo")]
     pub repo: Option<String>,
 }
 
+/// Executes the `filter-merged` subcommand: reads PR inputs from stdin,
+/// checks merge status via `gh`, and prints only merged PR numbers.
+///
+/// # Errors
+///
+/// Returns an error if stdin cannot be read or `gh` fails unexpectedly.
 pub fn execute_filter_merged(args: &FilterMergedArgs) -> Result<()> {
     let pr_inputs = crate::read_lines_from_stdin()?;
     let merged = filter_merged_prs(&FilterMergedParams {
@@ -28,12 +40,17 @@ struct PrState {
     state: String,
 }
 
+/// Parameters for [`filter_merged_prs`].
 pub struct FilterMergedParams<'a> {
     pub pr_inputs: &'a [String],
     pub repo: Option<&'a str>,
 }
 
 /// Accepts PR numbers or full GitHub PR URLs. Returns the PR numbers that are merged.
+///
+/// # Errors
+///
+/// Returns an error if `gh` cannot be invoked or JSON parsing fails.
 pub fn filter_merged_prs(params: &FilterMergedParams) -> Result<Vec<u64>> {
     let mut merged = Vec::new();
 

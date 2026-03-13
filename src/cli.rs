@@ -1,3 +1,9 @@
+//! Top-level CLI skeleton for `linear-get-ticket-prs`.
+//!
+//! Defines the root [`Cli`] parser, the [`Commands`] enum that routes to each
+//! subcommand, the [`OrchestratorArgs`] for the default all-in-one mode, and
+//! a [`generate_docs`] function for rendering `--help` output into markdown.
+
 use std::fs;
 use std::path::Path;
 
@@ -9,6 +15,10 @@ use crate::linear::{GetPrsArgs, GetTicketsArgs};
 use crate::missing::MissingPrsArgs;
 use crate::release_notes::ReleaseNotesArgs;
 
+/// Root CLI parser.
+///
+/// When invoked without a subcommand, runs the orchestrator pipeline
+/// (get-tickets -> get-prs -> filter-merged, optionally -> missing-prs).
 #[derive(Parser)]
 #[command(
     name = "linear-get-ticket-prs",
@@ -23,6 +33,7 @@ pub struct Cli {
     pub orchestrator: OrchestratorArgs,
 }
 
+/// Available subcommands, each corresponding to a pipeline stage or utility.
 #[derive(Subcommand)]
 pub enum Commands {
     /// Returns ticket identifiers matching specified filters, one per line
@@ -39,12 +50,17 @@ pub enum Commands {
     Completions(CompletionsArgs),
 }
 
+/// Arguments for the `completions` subcommand.
 #[derive(Args)]
 pub struct CompletionsArgs {
     /// The shell to generate completions for
     pub shell: Shell,
 }
 
+/// Arguments for the default orchestrator mode (no subcommand).
+///
+/// Chains get-tickets -> get-prs -> filter-merged, and optionally
+/// missing-prs when a release branch is provided or auto-detected.
 #[derive(Args)]
 pub struct OrchestratorArgs {
     #[arg(short = 'l', long = "label")]
@@ -82,6 +98,14 @@ const SUBCOMMANDS: &[&str] = &[
     "completions",
 ];
 
+/// Generates markdown documentation for every subcommand and the orchestrator.
+///
+/// Each file in `output_dir` contains the rendered `--help` output wrapped in
+/// a fenced code block. Intended to be called from `cargo run --bin gen_docs`.
+///
+/// # Errors
+///
+/// Returns an I/O error if files cannot be written.
 pub fn generate_docs(output_dir: &Path) -> std::io::Result<()> {
     fs::create_dir_all(output_dir)?;
 

@@ -1,5 +1,12 @@
+//! Unified error types for the application.
+//!
+//! All fallible public functions return [`Result<T>`], which uses the
+//! crate-level [`Error`] enum to represent every failure mode across
+//! subprocesses, API calls, and user input validation.
+
 use std::fmt;
 
+/// All error conditions that can occur across the tool.
 #[derive(Debug)]
 pub enum Error {
     ApiKeyNotFound,
@@ -81,4 +88,5 @@ impl From<std::io::Error> for Error {
     }
 }
 
+/// Convenience alias used throughout the crate.
 pub type Result<T> = std::result::Result<T, Error>;
