@@ -1,4 +1,7 @@
-use clap::{Args, Parser, Subcommand};
+use std::fs;
+use std::path::Path;
+
+use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
 
 use crate::github::FilterMergedArgs;
@@ -68,4 +71,57 @@ pub struct OrchestratorArgs {
     /// Run missing-prs analysis against this release branch after filter-merged
     #[arg(short = 'b', long = "release-branch")]
     pub release_branch: Option<String>,
+}
+
+const SUBCOMMANDS: &[&str] = &[
+    "get-tickets",
+    "get-prs",
+    "filter-merged",
+    "missing-prs",
+    "release-notes",
+    "completions",
+];
+
+pub fn generate_docs(output_dir: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(output_dir)?;
+
+    let cmd = Cli::command();
+
+    let help_text = render_help(&cmd);
+    let content = format!("# Orchestrator (default mode)\n\n```\n{help_text}\n```\n");
+    fs::write(output_dir.join("orchestrator.md"), content)?;
+
+    for name in SUBCOMMANDS {
+        let Some(sub) = cmd.find_subcommand(name) else {
+            continue;
+        };
+
+        let text = render_help(sub);
+        let title = titlecase(name);
+        let content = format!("# {title}\n\n```\n{text}\n```\n");
+        fs::write(output_dir.join(format!("{name}.md")), content)?;
+    }
+
+    Ok(())
+}
+
+fn render_help(cmd: &clap::Command) -> String {
+    cmd.clone().render_help().to_string()
+}
+
+fn titlecase(kebab: &str) -> String {
+    kebab
+        .split('-')
+        .map(|w| {
+            let mut chars = w.chars();
+            match chars.next() {
+                Some(first) => {
+                    let upper: String = first.to_uppercase().collect();
+                    format!("{upper}{}", chars.as_str())
+                }
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
