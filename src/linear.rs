@@ -217,10 +217,25 @@ pub fn get_prs_for_tickets(params: &GetPrsParams) -> Result<Vec<u64>> {
             .as_object()
             .ok_or_else(|| Error::GraphqlErrors(vec!["expected object in data".to_string()]))?;
 
-        for (_alias, issue_val) in obj {
+        for (alias, issue_val) in obj {
+            let ticket_id = alias
+                .strip_prefix('i')
+                .and_then(|idx| idx.parse::<usize>().ok())
+                .and_then(|idx| chunk.get(idx));
+
             if issue_val.is_null() {
+                if let Some(id) = ticket_id {
+                    eprintln!("warning: {id} — ticket not found or inaccessible");
+                }
                 continue;
             }
+
+            let assignee = issue_val
+                .get("assignee")
+                .and_then(|a| a.get("name"))
+                .and_then(|n| n.as_str());
+
+            let mut found_pr = false;
             if let Some(attachments) = issue_val.get("attachments")
                 && let Some(nodes) = attachments.get("nodes").and_then(|n| n.as_array())
             {
@@ -229,6 +244,7 @@ pub fn get_prs_for_tickets(params: &GetPrsParams) -> Result<Vec<u64>> {
                         && let Some(pr_number) = extract_pr_number(url)
                         && seen.insert(pr_number)
                     {
+                        found_pr = true;
                         result.push(pr_number);
                         if let Some(limit) = params.limit
                             && result.len() >= limit
@@ -236,6 +252,15 @@ pub fn get_prs_for_tickets(params: &GetPrsParams) -> Result<Vec<u64>> {
                             return Ok(result);
                         }
                     }
+                }
+            }
+
+            if !found_pr
+                && let Some(id) = ticket_id
+            {
+                match assignee {
+                    Some(name) => eprintln!("warning: {id} — no associated PRs found (assignee: {name})"),
+                    None => eprintln!("warning: {id} — no associated PRs found (unassigned)"),
                 }
             }
         }
@@ -251,7 +276,7 @@ fn build_alias_query(ticket_ids: &[String]) -> String {
         .map(|(i, id)| {
             let escaped_id = id.replace('"', "\\\"");
             format!(
-                r#"i{i}: issue(id: "{escaped_id}") {{ attachments {{ nodes {{ url }} }} }}"#
+                r#"i{i}: issue(id: "{escaped_id}") {{ assignee {{ name }} attachments {{ nodes {{ url }} }} }}"#
             )
         })
         .collect();
