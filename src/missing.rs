@@ -324,6 +324,15 @@ fn resolve_shas(params: &ResolveShasParams) -> Result<Vec<ResolvedPr>> {
         }
     }
 
+    // Fetch %b (body) for each resolved commit to use as the display subject
+    for resolved in resolved_map.values_mut() {
+        if let Ok(body) = fetch_commit_body(&resolved.sha)
+            && !body.is_empty()
+        {
+            resolved.subject = body;
+        }
+    }
+
     // Return in the same order as params.prs
     let result: Vec<ResolvedPr> = params
         .prs
@@ -332,6 +341,21 @@ fn resolve_shas(params: &ResolveShasParams) -> Result<Vec<ResolvedPr>> {
         .collect();
 
     Ok(result)
+}
+
+fn fetch_commit_body(sha: &str) -> Result<String> {
+    let output = Command::new("git")
+        .args(["log", "-1", "--format=%b", sha])
+        .output()
+        .map_err(|e| Error::SubprocessFailed {
+            command: "git".to_string(),
+            stderr: e.to_string(),
+            exit_code: None,
+        })?;
+
+    let body = String::from_utf8_lossy(&output.stdout);
+    let first_line = body.lines().find(|l| !l.trim().is_empty()).unwrap_or("");
+    Ok(first_line.trim().to_string())
 }
 
 fn extract_pr_refs_from_subject(subject: &str) -> Vec<u64> {
