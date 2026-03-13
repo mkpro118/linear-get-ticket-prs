@@ -334,27 +334,28 @@ pub fn get_prs_for_tickets(params: &GetPrsParams) -> Result<Vec<u64>> {
                 .and_then(|a| a.get("name"))
                 .and_then(|n| n.as_str());
 
-            let mut found_pr = false;
+            let mut has_pr = false;
             if let Some(attachments) = issue_val.get("attachments")
                 && let Some(nodes) = attachments.get("nodes").and_then(|n| n.as_array())
             {
                 for node in nodes {
                     if let Some(url) = node.get("url").and_then(|u| u.as_str())
                         && let Some(pr_number) = extract_pr_number(url)
-                        && seen.insert(pr_number)
                     {
-                        found_pr = true;
-                        result.push(pr_number);
-                        if let Some(limit) = params.limit
-                            && result.len() >= limit
-                        {
-                            return Ok(result);
+                        has_pr = true;
+                        if seen.insert(pr_number) {
+                            result.push(pr_number);
+                            if let Some(limit) = params.limit
+                                && result.len() >= limit
+                            {
+                                return Ok(result);
+                            }
                         }
                     }
                 }
             }
 
-            if !found_pr
+            if !has_pr
                 && let Some(id) = ticket_id
             {
                 match assignee {
