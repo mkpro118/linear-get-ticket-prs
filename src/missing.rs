@@ -140,15 +140,8 @@ pub fn run(params: &MissingPrsParams) -> Result<()> {
 
     if !cherry_pick_entries.is_empty() {
         println!();
-        println!("git cherry-pick -x --mainline=1 \\");
-        let last_idx = cherry_pick_entries.len() - 1;
-        for (i, (r, pr)) in cherry_pick_entries.iter().enumerate() {
-            if i < last_idx {
-                println!("    {} \\  # #{pr}", r.sha);
-            } else {
-                println!("    {}    # #{pr}", r.sha);
-            }
-        }
+        let shas: Vec<&str> = cherry_pick_entries.iter().map(|(r, _)| r.sha.as_str()).collect();
+        println!("git cherry-pick -x --mainline=1 {}", shas.join(" "));
     }
 
     Ok(())
