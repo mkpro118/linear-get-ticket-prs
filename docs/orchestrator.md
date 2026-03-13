@@ -33,6 +33,6 @@ Options:
   -b, --release-branch <RELEASE_BRANCH>
           Run missing-prs analysis against this release branch after filter-merged
   -h, --help
-          Print help
+          Print help (see more with '--help')
 
 ```
