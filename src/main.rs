@@ -1,17 +1,10 @@
-#![allow(forbidden_lint_groups)]
-
-mod error;
-mod github;
-mod linear;
-mod missing;
-mod release_notes;
-
 use std::io::{self, BufRead};
 use std::process;
 
 use clap::{Args, CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
 
+use linear_get_ticket_prs::{error, github, linear, missing, release_notes};
 use error::Result;
 
 #[derive(Parser)]
