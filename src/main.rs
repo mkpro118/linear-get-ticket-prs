@@ -109,6 +109,10 @@ struct OrchestratorArgs {
 
     #[arg(short = 'k', long = "api-key")]
     api_key: Option<String>,
+
+    /// Run missing-prs analysis against this release branch after filter-merged
+    #[arg(short = 'b', long = "release-branch")]
+    release_branch: Option<String>,
 }
 
 fn read_lines_from_stdin() -> Result<Vec<String>> {
@@ -178,46 +182,61 @@ fn run() -> Result<()> {
                 &mut io::stdout(),
             );
         }
-        None => {
-            let orch = &cli.orchestrator;
-            let api_key = linear::resolve_api_key(orch.api_key.as_deref())?;
+        None => orchestrate(&cli.orchestrator)?,
+    }
 
-            let tickets = linear::get_tickets(&linear::GetTicketsParams {
-                api_key: &api_key,
-                labels: &orch.labels,
-                statuses: &orch.statuses,
-                assignees: &orch.assignees,
-                limit: orch.limit_tickets,
-            })?;
+    Ok(())
+}
 
-            if tickets.is_empty() {
-                return Ok(());
-            }
+fn orchestrate(orch: &OrchestratorArgs) -> Result<()> {
+    let api_key = linear::resolve_api_key(orch.api_key.as_deref())?;
 
-            let prs = linear::get_prs_for_tickets(&linear::GetPrsParams {
-                api_key: &api_key,
-                ticket_ids: &tickets,
-                limit: orch.limit_prs,
-            })?;
+    let tickets = linear::get_tickets(&linear::GetTicketsParams {
+        api_key: &api_key,
+        labels: &orch.labels,
+        statuses: &orch.statuses,
+        assignees: &orch.assignees,
+        limit: orch.limit_tickets,
+    })?;
 
-            if prs.is_empty() {
-                return Ok(());
-            }
+    if tickets.is_empty() {
+        return Ok(());
+    }
 
-            let pr_strings: Vec<String> =
-                prs.iter().map(ToString::to_string).collect();
-            let merged = github::filter_merged_prs(&github::FilterMergedParams {
-                pr_inputs: &pr_strings,
-                repo: orch.repo.as_deref(),
-            })?;
+    let prs = linear::get_prs_for_tickets(&linear::GetPrsParams {
+        api_key: &api_key,
+        ticket_ids: &tickets,
+        limit: orch.limit_prs,
+    })?;
 
-            for pr in &merged {
-                let url = match &orch.repo {
-                    Some(repo) => format!("https://github.com/{repo}/pull/{pr}"),
-                    None => pr.to_string(),
-                };
-                println!("{url}");
-            }
+    if prs.is_empty() {
+        return Ok(());
+    }
+
+    let pr_strings: Vec<String> = prs.iter().map(ToString::to_string).collect();
+    let merged = github::filter_merged_prs(&github::FilterMergedParams {
+        pr_inputs: &pr_strings,
+        repo: orch.repo.as_deref(),
+    })?;
+
+    if merged.is_empty() {
+        return Ok(());
+    }
+
+    if orch.release_branch.is_some() || missing::on_release_branch() {
+        let merged_strings: Vec<String> =
+            merged.iter().map(ToString::to_string).collect();
+        missing::run(&missing::MissingPrsParams {
+            pr_lines: &merged_strings,
+            release_branch: orch.release_branch.as_deref(),
+        })?;
+    } else {
+        for pr in &merged {
+            let url = match &orch.repo {
+                Some(repo) => format!("https://github.com/{repo}/pull/{pr}"),
+                None => pr.to_string(),
+            };
+            println!("{url}");
         }
     }
 

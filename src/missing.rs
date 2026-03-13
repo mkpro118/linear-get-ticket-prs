@@ -365,6 +365,19 @@ fn extract_pr_refs_from_subject(subject: &str) -> Vec<u64> {
     result
 }
 
+/// Returns true if the current git branch looks like a release branch (release/v*).
+/// Used by the orchestrator to decide whether to auto-engage missing-prs.
+pub fn on_release_branch() -> bool {
+    let output = Command::new("git")
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+        .ok();
+    output
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .is_some_and(|b| b.trim().starts_with("release/v"))
+}
+
 fn detect_release_branch() -> Result<String> {
     let output = Command::new("git")
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
