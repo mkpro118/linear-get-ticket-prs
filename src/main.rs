@@ -4,6 +4,7 @@ mod error;
 mod github;
 mod linear;
 mod missing;
+mod release_notes;
 
 use std::io::{self, BufRead};
 use std::process;
@@ -37,6 +38,8 @@ enum Commands {
     FilterMerged(FilterMergedArgs),
     /// Find PRs present on main but missing from a release branch
     MissingPrs(MissingPrsArgs),
+    /// Generate human-readable release notes between two git refs
+    ReleaseNotes(ReleaseNotesArgs),
     /// Generate shell completions and print to stdout
     Completions(CompletionsArgs),
 }
@@ -79,6 +82,25 @@ struct MissingPrsArgs {
     /// The release branch to compare against (auto-detected from current branch if omitted)
     #[arg(short = 'b', long = "release-branch")]
     release_branch: Option<String>,
+}
+
+#[derive(Args)]
+struct ReleaseNotesArgs {
+    /// The base git ref (must be an ancestor of head)
+    #[arg(long)]
+    base: String,
+
+    /// The head git ref
+    #[arg(long)]
+    head: String,
+
+    /// Git config key prefix that maps branch namespaces to GitHub handles
+    #[arg(long)]
+    config_key: String,
+
+    /// Repository/org name to match in merge commit subjects
+    #[arg(long)]
+    repo_name: String,
 }
 
 #[derive(Args)]
@@ -172,6 +194,14 @@ fn run() -> Result<()> {
             missing::run(&missing::MissingPrsParams {
                 pr_lines: &pr_lines,
                 release_branch: args.release_branch.as_deref(),
+            })?;
+        }
+        Some(Commands::ReleaseNotes(args)) => {
+            release_notes::run(&release_notes::ReleaseNotesParams {
+                base: &args.base,
+                head: &args.head,
+                config_key: &args.config_key,
+                repo_name: &args.repo_name,
             })?;
         }
         Some(Commands::Completions(args)) => {
