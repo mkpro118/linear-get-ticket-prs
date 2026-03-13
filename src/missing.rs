@@ -140,7 +140,7 @@ pub fn run(params: &MissingPrsParams) -> Result<()> {
 
     if !cherry_pick_entries.is_empty() {
         println!();
-        println!("git cherry-pick --mainline=1 \\");
+        println!("git cherry-pick -x --mainline=1 \\");
         let last_idx = cherry_pick_entries.len() - 1;
         for (i, (r, pr)) in cherry_pick_entries.iter().enumerate() {
             if i < last_idx {
