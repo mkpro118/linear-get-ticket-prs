@@ -17,6 +17,7 @@ pub enum Error {
     InvalidBranch(String),
     NoBranchDetected,
     MissingTool(String),
+    NotAncestor { base: String, head: String },
     Io(std::io::Error),
 }
 
@@ -57,6 +58,9 @@ impl fmt::Display for Error {
             ),
             Error::MissingTool(tool) => {
                 write!(f, "required tool not found on PATH: {tool}")
+            }
+            Error::NotAncestor { base, head } => {
+                write!(f, "{base} is not an ancestor of {head} — refusing to continue (will not silently swap arguments)")
             }
             Error::Io(e) => write!(f, "I/O error: {e}"),
         }
