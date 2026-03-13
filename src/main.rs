@@ -3,6 +3,7 @@
 mod error;
 mod github;
 mod linear;
+mod missing;
 
 use std::io::{self, BufRead};
 use std::process;
@@ -34,6 +35,8 @@ enum Commands {
     GetPrs(GetPrsArgs),
     /// Filters stdin PR numbers/URLs to only those in MERGED status
     FilterMerged(FilterMergedArgs),
+    /// Find PRs present on main but missing from a release branch
+    MissingPrs(MissingPrsArgs),
     /// Generate shell completions and print to stdout
     Completions(CompletionsArgs),
 }
@@ -69,6 +72,13 @@ struct GetPrsArgs {
 struct FilterMergedArgs {
     #[arg(short = 'r', long = "repo")]
     repo: Option<String>,
+}
+
+#[derive(Args)]
+struct MissingPrsArgs {
+    /// The release branch to compare against (auto-detected from current branch if omitted)
+    #[arg(short = 'b', long = "release-branch")]
+    release_branch: Option<String>,
 }
 
 #[derive(Args)]
@@ -152,6 +162,13 @@ fn run() -> Result<()> {
             for pr in &merged {
                 println!("{pr}");
             }
+        }
+        Some(Commands::MissingPrs(args)) => {
+            let pr_lines = read_lines_from_stdin()?;
+            missing::run(&missing::MissingPrsParams {
+                pr_lines: &pr_lines,
+                release_branch: args.release_branch.as_deref(),
+            })?;
         }
         Some(Commands::Completions(args)) => {
             clap_complete::generate(
