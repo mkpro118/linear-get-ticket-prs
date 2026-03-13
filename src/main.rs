@@ -7,7 +7,8 @@ mod linear;
 use std::io::{self, BufRead};
 use std::process;
 
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, CommandFactory, Parser, Subcommand};
+use clap_complete::Shell;
 
 use error::Result;
 
@@ -33,6 +34,8 @@ enum Commands {
     GetPrs(GetPrsArgs),
     /// Filters stdin PR numbers/URLs to only those in MERGED status
     FilterMerged(FilterMergedArgs),
+    /// Generate shell completions and print to stdout
+    Completions(CompletionsArgs),
 }
 
 #[derive(Args)]
@@ -66,6 +69,12 @@ struct GetPrsArgs {
 struct FilterMergedArgs {
     #[arg(short = 'r', long = "repo")]
     repo: Option<String>,
+}
+
+#[derive(Args)]
+struct CompletionsArgs {
+    /// The shell to generate completions for
+    shell: Shell,
 }
 
 #[derive(Args)]
@@ -143,6 +152,14 @@ fn run() -> Result<()> {
             for pr in &merged {
                 println!("{pr}");
             }
+        }
+        Some(Commands::Completions(args)) => {
+            clap_complete::generate(
+                args.shell,
+                &mut Cli::command(),
+                "linear-get-ticket-prs",
+                &mut io::stdout(),
+            );
         }
         None => {
             let orch = &cli.orchestrator;
