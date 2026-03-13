@@ -12,6 +12,11 @@ pub enum Error {
     GraphqlErrors(Vec<String>),
     #[allow(dead_code)]
     InvalidTicketId(String),
+    InvalidPrNumber(String),
+    EmptyInput,
+    InvalidBranch(String),
+    NoBranchDetected,
+    MissingTool(String),
     Io(std::io::Error),
 }
 
@@ -38,6 +43,20 @@ impl fmt::Display for Error {
             }
             Error::InvalidTicketId(id) => {
                 write!(f, "invalid ticket identifier: {id}")
+            }
+            Error::InvalidPrNumber(line) => {
+                write!(f, "invalid PR number (expected positive integer): {line}")
+            }
+            Error::EmptyInput => write!(f, "no PR numbers provided on stdin"),
+            Error::InvalidBranch(branch) => {
+                write!(f, "branch does not exist as a local git ref: {branch}")
+            }
+            Error::NoBranchDetected => write!(
+                f,
+                "no --release-branch provided and current branch is not a release/* branch"
+            ),
+            Error::MissingTool(tool) => {
+                write!(f, "required tool not found on PATH: {tool}")
             }
             Error::Io(e) => write!(f, "I/O error: {e}"),
         }
