@@ -3,7 +3,24 @@ use std::fmt::Write as _;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
+use clap::Args;
+
 use crate::error::{Error, Result};
+
+#[derive(Args)]
+pub struct MissingPrsArgs {
+    /// The release branch to compare against (auto-detected from current branch if omitted)
+    #[arg(short = 'b', long = "release-branch")]
+    pub release_branch: Option<String>,
+}
+
+pub fn execute(args: &MissingPrsArgs) -> Result<()> {
+    let pr_lines = crate::read_lines_from_stdin()?;
+    run(&MissingPrsParams {
+        pr_lines: &pr_lines,
+        release_branch: args.release_branch.as_deref(),
+    })
+}
 
 pub struct MissingPrsParams<'a> {
     pub pr_lines: &'a [String],

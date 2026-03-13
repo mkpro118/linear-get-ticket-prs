@@ -1,4 +1,6 @@
-use std::io::{self, BufRead};
+#![allow(forbidden_lint_groups)]
+
+use std::io;
 use std::process;
 
 use clap::{Args, CommandFactory, Parser, Subcommand};
@@ -24,76 +26,17 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Returns ticket identifiers matching specified filters, one per line
-    GetTickets(GetTicketsArgs),
+    GetTickets(linear::GetTicketsArgs),
     /// Fetches GitHub PR numbers for tickets provided on stdin, one per line
-    GetPrs(GetPrsArgs),
+    GetPrs(linear::GetPrsArgs),
     /// Filters stdin PR numbers/URLs to only those in MERGED status
-    FilterMerged(FilterMergedArgs),
+    FilterMerged(github::FilterMergedArgs),
     /// Find PRs present on main but missing from a release branch
-    MissingPrs(MissingPrsArgs),
+    MissingPrs(missing::MissingPrsArgs),
     /// Generate human-readable release notes between two git refs
-    ReleaseNotes(ReleaseNotesArgs),
+    ReleaseNotes(release_notes::ReleaseNotesArgs),
     /// Generate shell completions and print to stdout
     Completions(CompletionsArgs),
-}
-
-#[derive(Args)]
-struct GetTicketsArgs {
-    #[arg(short = 'l', long = "label")]
-    labels: Vec<String>,
-
-    #[arg(short = 's', long = "status")]
-    statuses: Vec<String>,
-
-    #[arg(short = 'a', long = "assignee")]
-    assignees: Vec<String>,
-
-    #[arg(short = 'n', long = "limit")]
-    limit: Option<usize>,
-
-    #[arg(short = 'k', long = "api-key")]
-    api_key: Option<String>,
-}
-
-#[derive(Args)]
-struct GetPrsArgs {
-    #[arg(short = 'n', long = "limit")]
-    limit: Option<usize>,
-
-    #[arg(short = 'k', long = "api-key")]
-    api_key: Option<String>,
-}
-
-#[derive(Args)]
-struct FilterMergedArgs {
-    #[arg(short = 'r', long = "repo")]
-    repo: Option<String>,
-}
-
-#[derive(Args)]
-struct MissingPrsArgs {
-    /// The release branch to compare against (auto-detected from current branch if omitted)
-    #[arg(short = 'b', long = "release-branch")]
-    release_branch: Option<String>,
-}
-
-#[derive(Args)]
-struct ReleaseNotesArgs {
-    /// The base git ref (must be an ancestor of head)
-    #[arg(long)]
-    base: String,
-
-    /// The head git ref
-    #[arg(long)]
-    head: String,
-
-    /// Git config key prefix that maps branch namespaces to GitHub handles
-    #[arg(long)]
-    config_key: String,
-
-    /// Repository/org name to match in merge commit subjects
-    #[arg(long)]
-    repo_name: String,
 }
 
 #[derive(Args)]
@@ -130,73 +73,15 @@ struct OrchestratorArgs {
     release_branch: Option<String>,
 }
 
-fn read_lines_from_stdin() -> Result<Vec<String>> {
-    let stdin = io::stdin();
-    let lines: Vec<String> = stdin
-        .lock()
-        .lines()
-        .collect::<std::result::Result<Vec<_>, _>>()?
-        .into_iter()
-        .map(|l| l.trim().to_string())
-        .filter(|l| !l.is_empty())
-        .collect();
-    Ok(lines)
-}
-
 fn run() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Some(Commands::GetTickets(args)) => {
-            let api_key = linear::resolve_api_key(args.api_key.as_deref())?;
-            let tickets = linear::get_tickets(&linear::GetTicketsParams {
-                api_key: &api_key,
-                labels: &args.labels,
-                statuses: &args.statuses,
-                assignees: &args.assignees,
-                limit: args.limit,
-            })?;
-            for ticket in &tickets {
-                println!("{ticket}");
-            }
-        }
-        Some(Commands::GetPrs(args)) => {
-            let api_key = linear::resolve_api_key(args.api_key.as_deref())?;
-            let ticket_ids = read_lines_from_stdin()?;
-            let prs = linear::get_prs_for_tickets(&linear::GetPrsParams {
-                api_key: &api_key,
-                ticket_ids: &ticket_ids,
-                limit: args.limit,
-            })?;
-            for pr in &prs {
-                println!("{pr}");
-            }
-        }
-        Some(Commands::FilterMerged(args)) => {
-            let pr_inputs = read_lines_from_stdin()?;
-            let merged = github::filter_merged_prs(&github::FilterMergedParams {
-                pr_inputs: &pr_inputs,
-                repo: args.repo.as_deref(),
-            })?;
-            for pr in &merged {
-                println!("{pr}");
-            }
-        }
-        Some(Commands::MissingPrs(args)) => {
-            let pr_lines = read_lines_from_stdin()?;
-            missing::run(&missing::MissingPrsParams {
-                pr_lines: &pr_lines,
-                release_branch: args.release_branch.as_deref(),
-            })?;
-        }
-        Some(Commands::ReleaseNotes(args)) => {
-            release_notes::run(&release_notes::ReleaseNotesParams {
-                base: &args.base,
-                head: &args.head,
-                config_key: &args.config_key,
-                repo_name: &args.repo_name,
-            })?;
-        }
+        Some(Commands::GetTickets(args)) => linear::execute_get_tickets(&args)?,
+        Some(Commands::GetPrs(args)) => linear::execute_get_prs(&args)?,
+        Some(Commands::FilterMerged(args)) => github::execute_filter_merged(&args)?,
+        Some(Commands::MissingPrs(args)) => missing::execute(&args)?,
+        Some(Commands::ReleaseNotes(args)) => release_notes::execute(&args)?,
         Some(Commands::Completions(args)) => {
             clap_complete::generate(
                 args.shell,

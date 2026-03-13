@@ -1,9 +1,66 @@
 use std::collections::HashSet;
 use std::process::Command;
 
+use clap::Args;
 use serde::Deserialize;
 
 use crate::error::{Error, Result};
+
+#[derive(Args)]
+pub struct GetTicketsArgs {
+    #[arg(short = 'l', long = "label")]
+    pub labels: Vec<String>,
+
+    #[arg(short = 's', long = "status")]
+    pub statuses: Vec<String>,
+
+    #[arg(short = 'a', long = "assignee")]
+    pub assignees: Vec<String>,
+
+    #[arg(short = 'n', long = "limit")]
+    pub limit: Option<usize>,
+
+    #[arg(short = 'k', long = "api-key")]
+    pub api_key: Option<String>,
+}
+
+#[derive(Args)]
+pub struct GetPrsArgs {
+    #[arg(short = 'n', long = "limit")]
+    pub limit: Option<usize>,
+
+    #[arg(short = 'k', long = "api-key")]
+    pub api_key: Option<String>,
+}
+
+pub fn execute_get_tickets(args: &GetTicketsArgs) -> Result<()> {
+    let api_key = resolve_api_key(args.api_key.as_deref())?;
+    let tickets = get_tickets(&GetTicketsParams {
+        api_key: &api_key,
+        labels: &args.labels,
+        statuses: &args.statuses,
+        assignees: &args.assignees,
+        limit: args.limit,
+    })?;
+    for ticket in &tickets {
+        println!("{ticket}");
+    }
+    Ok(())
+}
+
+pub fn execute_get_prs(args: &GetPrsArgs) -> Result<()> {
+    let api_key = resolve_api_key(args.api_key.as_deref())?;
+    let ticket_ids = crate::read_lines_from_stdin()?;
+    let prs = get_prs_for_tickets(&GetPrsParams {
+        api_key: &api_key,
+        ticket_ids: &ticket_ids,
+        limit: args.limit,
+    })?;
+    for pr in &prs {
+        println!("{pr}");
+    }
+    Ok(())
+}
 
 const LINEAR_GRAPHQL_ENDPOINT: &str = "https://api.linear.app/graphql";
 const PAGE_SIZE: usize = 50;

@@ -1,8 +1,27 @@
 use std::process::Command;
 
+use clap::Args;
 use serde::Deserialize;
 
 use crate::error::{Error, Result};
+
+#[derive(Args)]
+pub struct FilterMergedArgs {
+    #[arg(short = 'r', long = "repo")]
+    pub repo: Option<String>,
+}
+
+pub fn execute_filter_merged(args: &FilterMergedArgs) -> Result<()> {
+    let pr_inputs = crate::read_lines_from_stdin()?;
+    let merged = filter_merged_prs(&FilterMergedParams {
+        pr_inputs: &pr_inputs,
+        repo: args.repo.as_deref(),
+    })?;
+    for pr in &merged {
+        println!("{pr}");
+    }
+    Ok(())
+}
 
 #[derive(Deserialize)]
 struct PrState {

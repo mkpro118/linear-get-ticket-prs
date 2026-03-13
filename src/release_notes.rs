@@ -1,7 +1,37 @@
 use std::collections::HashMap;
 use std::process::Command;
 
+use clap::Args;
+
 use crate::error::{Error, Result};
+
+#[derive(Args)]
+pub struct ReleaseNotesArgs {
+    /// The base git ref (must be an ancestor of head)
+    #[arg(long)]
+    pub base: String,
+
+    /// The head git ref
+    #[arg(long)]
+    pub head: String,
+
+    /// Git config key prefix that maps branch namespaces to GitHub handles
+    #[arg(long)]
+    pub config_key: String,
+
+    /// Repository/org name to match in merge commit subjects
+    #[arg(long)]
+    pub repo_name: String,
+}
+
+pub fn execute(args: &ReleaseNotesArgs) -> Result<()> {
+    run(&ReleaseNotesParams {
+        base: &args.base,
+        head: &args.head,
+        config_key: &args.config_key,
+        repo_name: &args.repo_name,
+    })
+}
 
 pub struct ReleaseNotesParams<'a> {
     pub base: &'a str,
